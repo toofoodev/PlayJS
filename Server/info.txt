@@ -1,0 +1,38 @@
+== PlayJS (Info v1) ==
+== https://github.com/TooFooDev/PlayJS ==
+== Made by Wes ==
+
+TypeScript: https://www.typescriptlang.org/
+Node.js: https://nodejs.org/
+Bun: https://bun.com/
+
+_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
+
+= How to Setup
+
+Get dependencies:
+
+for Wispbyte, make your server a "Bun" server.
+for Others, download Node.js and Bun.
+
+_-_-_-_-_-_-_-_-_-_
+
+Set the port:
+
+for Wispbyte, do the port on the ip. | "12.345.678.900:{port}"
+for Others, set whatever. (or any open port like 3000 or 25565)
+
+_-_-_-_-_-_-_-_-_-_
+
+Set up your Unity Scene:
+
+Download the Unity Package on the newest release of PlayJS (please match the server & client!)
+Add ALL the scripts on to a GameObject. (like a manager object)
+
+_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
+
+= How to Start Server
+
+for Wispbyte, set the start up file as "main.ts".
+for Windows, run "RUNSERVER.BAT".
+for Others, run "main.ts". (Command: bun main.ts)
