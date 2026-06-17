@@ -1,10 +1,11 @@
-== PlayJS (Info v1) ==
+== PlayJS (Info v1.1) ==
 == https://github.com/TooFooDev/PlayJS ==
 == Made by Wes ==
 
 TypeScript: https://www.typescriptlang.org/
 Node.js: https://nodejs.org/
 Bun: https://bun.com/
+Lodash: https://lodash.com/
 
 _-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_
 

@@ -3,12 +3,12 @@ namespace PlayJS
     using System;
     using System.Collections;
     using UnityEngine;
+    using TMPro;
     using UnityEngine.Networking;
 
     public class PlayJS : MonoBehaviour
     {
         public string ServerUrl = "http://localhost:3000";
-        private string currentcosId;
 
         public static PlayJS Instance { get; private set; }
 
@@ -19,36 +19,78 @@ namespace PlayJS
 
         public void BuyCosmetic(string pid, string cos)
         {
-            currentcosId = cos;
-            StartCoroutine(SendReq(pid, "Cosmetic"));
+            StartCoroutine(cosmeticreq(pid, cos));
         }
 
-        private IEnumerator SendReq(string playerId, string what)
+        public void EditPlayer(string pid, string changeWhat, string changeToWhat)
         {
-            if (what == "Cosmetic")
+            StartCoroutine(editreq(pid, changeWhat, changeToWhat));
+        }
+
+        private IEnumerator editreq(string playerId, string what, string how)
+        {
+            using (UnityWebRequest webRequest = UnityWebRequest.Get(ServerUrl + "/user/edit/" + what))
             {
-                using (UnityWebRequest webRequest = UnityWebRequest.Get(ServerUrl + "/cosmetic/buy/"))
+                webRequest.SetRequestHeader("player", playerId);
+                webRequest.SetRequestHeader("what", how);
+
+                yield return webRequest.SendWebRequest();
+
+                if (webRequest.responseCode == 200)
                 {
-                    webRequest.SetRequestHeader("player", playerId);
-                    webRequest.SetRequestHeader("cosmetic", currentcosId);
+                    Debug.Log("changed " + what);
+                }
+                else
+                {
+                    Debug.Log("cant changed name" + what);
+                }
+            }
+        }
 
-                    yield return webRequest.SendWebRequest();
+        private IEnumerator cosmeticreq(string playerId, string currentcosId)
+        {
+            using (UnityWebRequest webRequest = UnityWebRequest.Get(ServerUrl + "/cosmetic/buy/"))
+            {
+                webRequest.SetRequestHeader("player", playerId);
+                webRequest.SetRequestHeader("cosmetic", currentcosId);
 
-                    if (webRequest.responseCode == 200)
+                yield return webRequest.SendWebRequest();
+
+                if (webRequest.responseCode == 200)
+                {
+                    Debug.Log("[PlayJS.Manager] Bought Cosmetic.");
+                }
+                else
+                {
+                    if (webRequest.responseCode == 401)
                     {
-                        Debug.Log("[PlayJS.Manager] Bought Cosmetic.");
+                        Debug.Log("[PlayJS.Manager] Couldn't Buy Cosmetic! (jumble jumble)");
                     }
                     else
                     {
-                        if (webRequest.responseCode == 401)
-                        {
-                            Debug.Log("[PlayJS.Manager] Couldn't Buy Cosmetic! (jumble jumble)");
-                        }
-                        else
-                        {
-                            Debug.Log("[PlayJS.Manager] Couldn't Buy Cosmetic!");
-                        }
+                        Debug.Log("[PlayJS.Manager] Couldn't Buy Cosmetic!");
                     }
+                }
+            }
+        }
+
+        public IEnumerator GetDataValue(string id, System.Action<string> onComplete)
+        {
+            string fullUrl = PlayJS.Instance.ServerUrl + "/server/data/" + id;
+
+            using (UnityWebRequest webRequest = UnityWebRequest.Get(fullUrl))
+            {
+                yield return webRequest.SendWebRequest();
+
+                if (webRequest.result == UnityWebRequest.Result.Success)
+                {
+                    string sting = webRequest.downloadHandler.text;
+                    onComplete?.Invoke(sting);
+                }
+                else
+                {
+                    Debug.LogError($"[PlayJS] Failed to get! ({webRequest.responseCode}): {webRequest.error}");
+                    onComplete?.Invoke(null);
                 }
             }
         }

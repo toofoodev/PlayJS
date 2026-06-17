@@ -1,7 +1,0 @@
-{
-    "find": "/user/find/",
-    "login": "/user/login/",
-    "create": "/user/create/",
-    "findallcosmetics": "/cosmetic/",
-    "buycosmetics": "/cosmetic/buy/"
-}

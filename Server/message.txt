@@ -1,6 +1,8 @@
 
 Thanks for using PlayJS!
 
+Don't change the name of "serverdata/data.json"
+
 Expect errors! If there are any or if you have any ideas, join the Discord!
 
 If you could add credits to your game then that would be nice but you don't have to if you dont want.

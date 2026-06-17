@@ -1,6 +1,5 @@
-const v = "1.0.0";
+const v = "1.0.1";
 // PlayJS - Made by WesGoof
-// Go to "localhost:{port}/url" to find all the urls that are used.
 
 // If you're self-hosting on Windows, run "RUNSERVER.BAT"
 // If you're on a server hosting website, add this file as the startup file. (My personal fav is Wispbyte.)
@@ -13,6 +12,9 @@ const v = "1.0.0";
 
 // Make sure you're on the newest PlayJS version!
 const checkversion = true; // Default = True
+
+// Log ALL actions. Not recommended for production but for development.
+const log = true; // Default = False
 
 // The port the server runs on.
 const serverport = 3000; // Default = 3000
@@ -34,6 +36,7 @@ const cjname = "cosmetics"; // Default = cosmetics
 
 // import some stuff bc you need it. trust me. you need it!
 import { mkdirSync } from "node:fs";
+import set from 'lodash/set';
 
 // check playjs version
 if (checkversion == true) {
@@ -90,23 +93,50 @@ if (!await cj.exists()) {
     console.error(`There is no "Cosmetics" file named "${cjname}.json"`)
     process.exit(1);
 }
+if (log) {
+    console.log(`Checks: Cosmetics JSON (+) - Default User JSON (+) - Player & Server Data Folders (?)`);
+}
 
 // server balls
+if (log) {
+    console.log(`Starting server on port ${serverport}`);
+}
 
 const server = Bun.serve({
   port: serverport,
   async fetch(req) {
     const url = new URL(req.url);
-    // server info (all url links for people who dont want to search the code)
-    if (req.method === "GET" && url.pathname === ("/url")) {
-        const file = Bun.file(`${svrpath}/needed.json`);
-        
-        return new Response(file, {
-            headers: {
-                "Content-Type": "application/json"
-            }
-        });
+    if (log) {
+            console.log(`User requested ${url.pathname}`);
     }
+
+    // === SERVER ===
+
+    // get datata balllls
+    if (req.method === "GET" && url.pathname.startsWith("/server/data/")) {
+        // what you wanna get boi
+        const get = url.pathname.replace("/server/data/", "");
+
+        // get path
+        const filePath = `${svrpath}/data.json`;
+
+        // set
+        const data = await Bun.file(filePath).json();
+        const value = data[get];
+
+        if (value == null || value == undefined) {
+            return new Response("null", { status: 400 });
+        }
+
+        if (log) {
+            console.log(`Result: ${value} | 200 TXT`);
+        }
+        return new Response(value, { status: 200 });
+    }
+
+    // === END ===
+
+    // === USER ===
 
     // check if user json exists
     if (req.method === "GET" && url.pathname.startsWith("/user/find/")) {
@@ -115,8 +145,14 @@ const server = Bun.serve({
 
         if (await file.exists()) {
             console.log(`User got: ${playerid}`)
+            if (log) {
+                console.log(`Result: User found! | 200 TXT`);
+            }
             return new Response("User found!", { status: 200 });
         } else {
+            if (log) {
+                console.log(`Result: User not found! | 400 TXT`);
+            }
             return new Response("User not found!", { status: 400 });
         }
     }
@@ -127,9 +163,15 @@ const server = Bun.serve({
         const file = Bun.file(`${pdpath}/${playerid}.json`);
 
         if (!await file.exists()) {
+            if (log) {
+                console.log(`Result: User not found! | 404 TXT`);
+            }
             return new Response("User not found!", { status: 404 });
         }
 
+        if (log) {
+            console.log(`Result: ${file} | 200 JSON`);
+        }
         return new Response(file, {
             headers: {
                 "Content-Type": "application/json"
@@ -143,6 +185,9 @@ const server = Bun.serve({
         const file = Bun.file(`${pdpath}/${playerid}.json`);
 
         if (await file.exists()) {
+            if (log) {
+                console.log(`Result: User already created! | 409 TXT`);
+            }
             return new Response("User already created!", { status: 409 });
         }
 
@@ -156,6 +201,10 @@ const server = Bun.serve({
         data.id = playerid;
         await Bun.write(filePath, JSON.stringify(data, null, 4));
 
+        if (log) {
+            console.log(`Result: ${Bun.file(filePath)} | 200 JSON`);
+        }
+
         // i need to change this to respond with json so unity doesnt trip the fuck out :sob:
         return new Response(Bun.file(filePath), {
             status: 200,
@@ -165,10 +214,52 @@ const server = Bun.serve({
         });
     }
 
+    // change som
+    if (req.method === "GET" && url.pathname.startsWith("/user/edit/")) {
+        // what you wanna change boi
+        const change = url.pathname.replace("/user/edit/", "");
+        
+        // get headers bc i said so
+        const playerid = req.headers.get("player");
+        const what = req.headers.get("what");
+
+        if (!playerid) {
+            if (log) {
+                console.log(`Result: PlayerID | 401 TXT`);
+            }
+            return new Response("PlayerID", { status: 401 });
+        }
+        if (!what) {
+            if (log) {
+                console.log(`Result: What | 401 TXT`);
+            }
+            return new Response("What", { status: 401 });
+        }
+        // get path
+        const filePath = `${pdpath}/${playerid}.json`;
+
+        // set
+        const data = await Bun.file(filePath).json();
+        set(data, change, what);
+        await Bun.write(filePath, JSON.stringify(data, null, 4));
+
+        if (log) {
+            console.log(`Result: Changed ${change} to ${what} | 200 TXT`);
+        }
+        return new Response(`Changed ${change} to ${what}`, { status: 200 });
+    }
+
+    // === END ===
+
+    // === COSMETICS ===
+
     // get all cosmetics in store
-    if (req.method === "GET" && url.pathname == ("/cosmetic/")) {
+    if (req.method === "GET" && url.pathname == "/cosmetics/all/" || url.pathname == "/cosmetics/all") {
         const file = Bun.file(`${svrpath}/${cjname}.json`);
         
+        if (log) {
+            console.log(`Result: ${file} | 200 JSON`);
+        }
         return new Response(file, {
             headers: {
                 "Content-Type": "application/json"
@@ -177,7 +268,7 @@ const server = Bun.serve({
     }
 
     // cosmetic buy
-    if (req.method === "GET" && url.pathname == ("/cosmetic/buy/")) {
+    if (req.method === "GET" && url.pathname == "/cosmetics/buy/" || "/cosmetics/buy") {
         const cos = `${svrpath}/${cjname}.json`;
 
         // get headers bc i said so
@@ -185,10 +276,16 @@ const server = Bun.serve({
         const cosid = req.headers.get("cosmetic");
 
         if (!playerid) {
+            if (log) {
+                console.log(`Result: PlayerID | 401 TXT`);
+            }
             return new Response("PlayerID", { status: 401 });
         }
 
         if (!cosid) {
+            if (log) {
+                console.log(`Result: CosID | 401 TXT`);
+            }
             return new Response("CosID", { status: 401 });
         }
 
@@ -207,11 +304,17 @@ const server = Bun.serve({
 
         // sucks to be you!
         if (plrdata.currency < price) {
+            if (log) {
+                console.log(`Result: Not enough currency | 400 TXT`);
+            }
             return new Response("Not enough currency", { status: 400 });
         }
 
         // damn
         if (plrdata.cosmetics.includes(cosid)) {
+            if (log) {
+                console.log(`Result: Already owned | 400 TXT`);
+            }
             return new Response("Already owned", { status: 400 });
         }
         plrdata.currency -= price;
@@ -219,9 +322,17 @@ const server = Bun.serve({
 
         await Bun.write(player, JSON.stringify(plrdata, null, 4));
 
+        if (log) {
+            console.log(`Result: Bought the thing you wanted :D | 200 TXT`);
+        }
         return new Response("Bought the thing you wanted :D", { status: 200 });
     }
 
+    // === END ===
+
+    if (log) {
+        console.log(`Result: This is a PlayJS Server. (https://github.com/TooFooDev/PlayJS) | 404 TXT`);
+    }
     return new Response("This is a PlayJS Server. (https://github.com/TooFooDev/PlayJS)", { status: 404 });
   },
 });

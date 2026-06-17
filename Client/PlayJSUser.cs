@@ -60,8 +60,8 @@ namespace PlayJS.User
                     Debug.Log("[PlayJS.User.Login] Logged In");
 
                     string jsonString = webRequest.downloadHandler.text;
-                    PlayerInfo playerData = JsonUtility.FromJson<PlayerInfo>(jsonString);
-                    onComplete?.Invoke(playerData);
+                    PlayerInfo playerInfo = JsonUtility.FromJson<PlayerInfo>(jsonString);
+                    onComplete?.Invoke(playerInfo);
                 }
                 else
                 {
