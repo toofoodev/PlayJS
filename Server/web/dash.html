@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Players Management</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; background: #121212; color: #fff; display: flex; gap: 40px; }
+        .column { flex: 1; }
+        .player-card { background: #1e1e1e; padding: 15px; margin-bottom: 10px; border-radius: 6px; border-left: 4px solid #5865F2; cursor: pointer; transition: background 0.2s; }
+        .player-card:hover { background: #2a2a2a; }
+        .inspector { background: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; position: sticky; top: 40px; }
+        h2, h3 { margin-top: 0; color: #ffffff; }
+        p { color: #aaaaaa; font-family: monospace; }
+        label { display: block; margin-top: 15px; font-weight: bold; color: #5865F2; margin-bottom: 5px; }
+        input { width: 100%; padding: 8px; background: #2b2b2b; color: #fff; border: 1px solid #444; border-radius: 4px; box-sizing: border-box; }
+        
+        /* Cosmetic Lists Styling */
+        .cosmetics-list { display: flex; flex-direction: column; gap: 6px; margin-top: 5px; max-height: 200px; overflow-y: auto; background: #141414; padding: 8px; border-radius: 4px; border: 1px solid #333; }
+        .cosmetic-item { display: flex; justify-content: space-between; align-items: center; background: #222; padding: 6px 10px; border-radius: 4px; font-size: 14px; }
+        
+        .btn-add { background: #23a55a; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-add:hover { background: #1a7f43; }
+        .btn-remove { background: #da373c; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-remove:hover { background: #a92b2f; }
+        
+        .btn-save { margin-top: 20px; width: 100%; padding: 10px; background: #5865F2; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 16px; }
+        .btn-save:hover { background: #4752C4; }
+        .hidden { display: none; }
+    </style>
+</head>
+<body>
+
+    <div class="column">
+        <h1>All Players</h1>
+        <hr><br>
+        <div id="playersContainer">Loading players...</div>
+    </div>
+
+    <div class="column">
+        <h1>Player Inspector</h1>
+        <hr><br>
+        <div id="inspectorPanel" class="inspector hidden">
+            <h3 id="inspectTitle">Select a player</h3>
+            <p id="inspectId"></p>
+            
+            <form id="editForm">
+                <label for="editName">Player Name</label>
+                <input type="text" id="editName">
+
+                <label for="editCurrency">Currency</label>
+                <input type="number" id="editCurrency">
+
+                <label>Owned Cosmetics</label>
+                <div id="ownedCosmetics" class="cosmetics-list"></div>
+
+                <label>Available to Add (From Shop)</label>
+                <div id="availableCosmetics" class="cosmetics-list"></div>
+
+                <button type="submit" class="btn-save">Save Changes</button>
+            </form>
+        </div>
+        <div id="inspectorPlaceholder">
+            <p>Click a player from the list to view and edit their full data.</p>
+        </div>
+    </div>
+
+    <script>
+        let activePlayerId = null;
+        let globalCosmeticsList = []; // Holds all cosmetics loaded from your cosmetics.json
+        let localPlayerCosmetics = []; // Tracks modifications locally before clicking save
+
+// do start
+        // This runs automatically as soon as the HTML page loads
+    window.addEventListener('DOMContentLoaded', async () => {
+        const savedToken = localStorage.getItem('PJSTOKEN');
+
+        // If there's no token saved yet, don't do anything (let them log in normally)
+        if (!savedToken) return;
+
+        try {
+            // Send the token to the server to check if it's still valid
+            const response = await fetch('/admin/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token: savedToken })
+            });
+
+            const data = await response.json();
+
+            // If the server confirms { "success": false }
+            if (!response.ok && data.success === false) {
+                console.log("Token verified! Redirecting...");
+                
+                // Change this URL to wherever you want your logged-in admins to go
+                window.location.href = "/admin/"; 
+            }
+
+        } catch (error) {
+            console.error('Error auto-verifying token:', error);
+        }
+    });
+
+        // 1. Fetch available shop items and initial player list
+        async function init() {
+            try {
+                // Hits your server's existing GET /cosmetics/all endpoint
+                const cosResponse = await fetch('/cosmetics/all');
+                if (cosResponse.ok) {
+                    const cosData = await cosResponse.json();
+                    globalCosmeticsList = Object.keys(cosData); // Extracts the names/IDs of cosmetics
+                }
+            } catch (err) {
+                console.error("Failed to load shop cosmetics configurations:", err);
+            }
+            loadPlayers();
+        }
+
+        async function loadPlayers() {
+            const container = document.getElementById('playersContainer');
+            try {
+                const response = await fetch('/admin/players');
+                const players = await response.json();
+                container.innerHTML = '';
+
+                if (players.length === 0) {
+                    container.innerHTML = '<p>No players found.</p>';
+                    return;
+                }
+
+                players.forEach(player => {
+                    const playerDiv = document.createElement('div');
+                    playerDiv.className = 'player-card';
+                    playerDiv.innerHTML = `<h2>${player.name}</h2><p>ID: ${player.id}</p>`;
+                    playerDiv.addEventListener('click', () => inspectPlayer(player.id));
+                    container.appendChild(playerDiv);
+                });
+            } catch (error) {
+                container.innerHTML = '<p style="color: #ff4747;">Error loading players.</p>';
+            }
+        }
+
+        // 2. Fetch full user info and display cosmetic lists
+        async function inspectPlayer(id) {
+            activePlayerId = id;
+            try {
+                const response = await fetch(`/user/get/${id}`);
+                if (!response.ok) throw new Error('Could not fetch player details');
+                
+                const data = await response.json();
+
+                document.getElementById('inspectorPanel').classList.remove('hidden');
+                document.getElementById('inspectorPlaceholder').classList.add('hidden');
+
+                document.getElementById('inspectTitle').innerText = data.name || "No Name";
+                document.getElementById('inspectId').innerText = `ID: ${data.id}`;
+                document.getElementById('editName').value = data.name || "";
+                document.getElementById('editCurrency').value = data.currency || 0;
+                
+                // Track current player cosmetics in local state
+                localPlayerCosmetics = data.cosmetics || [];
+                renderCosmeticsUI();
+
+            } catch (error) {
+                alert('Error loading player data: ' + error.message);
+            }
+        }
+
+        // 3. Render cosmetic buttons dynamically
+        function renderCosmeticsUI() {
+            const ownedContainer = document.getElementById('ownedCosmetics');
+            const availableContainer = document.getElementById('availableCosmetics');
+            
+            ownedContainer.innerHTML = '';
+            availableContainer.innerHTML = '';
+
+            // Render what they currently own
+            if (localPlayerCosmetics.length === 0) {
+                ownedContainer.innerHTML = '<div style="color:#666; font-size:13px;">No cosmetics owned.</div>';
+            } else {
+                localPlayerCosmetics.forEach(cosId => {
+                    const item = document.createElement('div');
+                    item.className = 'cosmetic-item';
+                    item.innerHTML = `<span>${cosId}</span><button type="button" class="btn-remove">Remove</button>`;
+                    item.querySelector('.btn-remove').addEventListener('click', () => {
+                        localPlayerCosmetics = localPlayerCosmetics.filter(id => id !== cosId);
+                        renderCosmeticsUI();
+                    });
+                    ownedContainer.appendChild(item);
+                });
+            }
+
+            // Render what they DON'T own yet from the global cosmetics list
+            const standardUnowned = globalCosmeticsList.filter(id => !localPlayerCosmetics.includes(id));
+            
+            if (standardUnowned.length === 0) {
+                availableContainer.innerHTML = '<div style="color:#666; font-size:13px;">All available cosmetics are owned.</div>';
+            } else {
+                standardUnowned.forEach(cosId => {
+                    const item = document.createElement('div');
+                    item.className = 'cosmetic-item';
+                    item.innerHTML = `<span>${cosId}</span><button type="button" class="btn-add">Add</button>`;
+                    item.querySelector('.btn-add').addEventListener('click', () => {
+                        if (!localPlayerCosmetics.includes(cosId)) {
+                            localPlayerCosmetics.push(cosId);
+                        }
+                        renderCosmeticsUI();
+                    });
+                    availableContainer.appendChild(item);
+                });
+            }
+        }
+
+        // 4. Save updates back to server
+        document.getElementById('editForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!activePlayerId) return;
+
+            const newName = document.getElementById('editName').value;
+            const newCurrency = parseInt(document.getElementById('editCurrency').value);
+
+            async function saveField(fieldPath, value) {
+                return fetch(`/user/edit/${fieldPath}`, {
+                    method: 'GET',
+                    headers: {
+                        'player': activePlayerId,
+                        'what': typeof value === 'object' ? JSON.stringify(value) : value
+                    }
+                });
+            }
+
+            try {
+                await saveField('name', newName);
+                await saveField('currency', newCurrency);
+                await saveField('cosmetics', localPlayerCosmetics); // Ships updated local tracking array
+
+                alert('Player modifications updated successfully!');
+                
+                loadPlayers();
+                inspectPlayer(activePlayerId);
+            } catch (error) {
+                console.error(error);
+                alert('Failed to save changes.');
+            }
+        });
+
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+
+</body>
+</html>

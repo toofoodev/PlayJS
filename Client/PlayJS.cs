@@ -8,6 +8,8 @@ namespace PlayJS
 
     public class PlayJS : MonoBehaviour
     {
+        private string version = "1.0.2";
+        public bool versionCheck = true;
         public string ServerUrl = "http://localhost:3000";
 
         public static PlayJS Instance { get; private set; }
@@ -15,6 +17,11 @@ namespace PlayJS
         private void Awake()
         {
             Instance = this;
+
+            if (versionCheck)
+            {
+                StartCoroutine(vc());
+            }
         }
 
         public void BuyCosmetic(string pid, string cos)
@@ -25,6 +32,31 @@ namespace PlayJS
         public void EditPlayer(string pid, string changeWhat, string changeToWhat)
         {
             StartCoroutine(editreq(pid, changeWhat, changeToWhat));
+        }
+
+        private IEnumerator vc()
+        {
+            using (UnityWebRequest webRequest = UnityWebRequest.Get("https://raw.githubusercontent.com/toofoodev/PlayJS/refs/heads/main/versionclient"))
+            {
+                yield return webRequest.SendWebRequest();
+
+                if (webRequest.responseCode == 200)
+                {
+                    Debug.Log("internet good");
+                    if (version == webRequest.downloadHandler.text)
+                    {
+                        Debug.Log("vc good");
+                    }
+                    else
+                    {
+                        Debug.LogWarning("PlayJS Updated Needed! Please update your PlayJS client.");
+                    }
+                }
+                else
+                {
+                    Debug.LogError("internet XD");
+                }
+            }
         }
 
         private IEnumerator editreq(string playerId, string what, string how)

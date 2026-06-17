@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlayJS Admin Panel</title>
+    <style>
+        body { font-family: sans-serif; margin: 40px; background: #121212; color: #fff; }
+        .login-box { max-width: 300px; padding: 20px; background: #1e1e1e; border-radius: 8px; }
+        input { width: 100%; padding: 8px; margin: 8px 0; box-sizing: border-box; }
+        button { width: 100%; padding: 10px; background: #5865F2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #4752C4; }
+    </style>
+</head>
+<body>
+
+    <h2>PlayJS Web GUI Login</h2>
+    <div class="login-box">
+        <label>Username</label>
+        <input type="text" id="username" placeholder="PlayJSAdmin">
+        
+        <label>Password</label>
+        <input type="password" id="password" placeholder="playjs">
+        
+        <button type="button" id="loginBtn">Login</button>
+    </div>
+
+    <script>
+        // do start
+        // This runs automatically as soon as the HTML page loads
+    window.addEventListener('DOMContentLoaded', async () => {
+        const savedToken = localStorage.getItem('PJSTOKEN');
+
+        // If there's no token saved yet, don't do anything (let them log in normally)
+        if (!savedToken) return;
+
+        try {
+            // Send the token to the server to check if it's still valid
+            const response = await fetch('/admin/verify', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ token: savedToken })
+            });
+
+            const data = await response.json();
+
+            // If the server confirms { "success": true }
+            if (response.ok && data.success === true) {
+                console.log("Token verified! Redirecting...");
+                
+                // Change this URL to wherever you want your logged-in admins to go
+                window.location.href = "/admin/dash"; 
+            } else {
+                // If the token was fake or expired, clean it out of storage
+                localStorage.removeItem('PJSTOKEN');
+            }
+
+        } catch (error) {
+            console.error('Error auto-verifying token:', error);
+        }
+    });
+
+    // butt-on
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            const usernameInput = document.getElementById('username').value;
+            const passwordInput = document.getElementById('password').value;
+
+            try {
+                // Send POST request to your Bun admin login route
+                const response = await fetch('/admin/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username: usernameInput,
+                        password: passwordInput
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.token) {
+                    // Save the token returned by the server to localStorage
+                    localStorage.setItem('PJSTOKEN', data.token);
+                    alert('Logged in! PJSTOKEN saved to localStorage.');
+                    
+                    // Optional: redirect to an admin dashboard area
+                    // window.location.reload(); 
+                } else {
+                    alert('Login failed: ' + (data.message || 'Invalid Credentials'));
+                }
+
+            } catch (error) {
+                console.error('Error during login:', error);
+                alert('Could not connect to the server.');
+            }
+        });
+    </script>
+
+</body>
+</html>

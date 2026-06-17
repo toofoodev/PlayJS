@@ -1,4 +1,4 @@
-const v = "1.0.1";
+const v = "1.0.2";
 // PlayJS - Made by WesGoof
 
 // If you're self-hosting on Windows, run "RUNSERVER.BAT"
@@ -14,7 +14,10 @@ const v = "1.0.1";
 const checkversion = true; // Default = True
 
 // Log ALL actions. Not recommended for production but for development.
-const log = true; // Default = False
+const log = false; // Default = False
+
+// Enable the Web GUI (at localhost:{port}/admin)
+const webgui = true; // Default = True
 
 // The port the server runs on.
 const serverport = 3000; // Default = 3000
@@ -35,7 +38,7 @@ const cjname = "cosmetics"; // Default = cosmetics
 // The no touch zone (unless you can code, like me. im pro coder man trust :O)
 
 // import some stuff bc you need it. trust me. you need it!
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readdirSync } from "node:fs";
 import set from 'lodash/set';
 
 // check playjs version
@@ -72,6 +75,15 @@ if (welcome) {
 else {
     console.log("That was mean to delete my message like that! :sob:");
     console.log("It's fine, it's your machine BUT IT'S MY PROGRAM MWAHAHAHAHAHAHA");
+}
+
+// check web pass
+if (webgui) {
+    const info = await Bun.file(`${svrpath}/weblogin.json`).json();
+    if (info.password == "playjs") {
+        console.error(`Please update the password in "weblogin.json"`)
+        process.exit(1);
+    }
 }
 
 // start shit to make sure you didnt fuck up!
@@ -216,38 +228,27 @@ const server = Bun.serve({
 
     // change som
     if (req.method === "GET" && url.pathname.startsWith("/user/edit/")) {
-        // what you wanna change boi
-        const change = url.pathname.replace("/user/edit/", "");
-        
-        // get headers bc i said so
-        const playerid = req.headers.get("player");
-        const what = req.headers.get("what");
+    const change = url.pathname.replace("/user/edit/", "");
+    const playerid = req.headers.get("player");
+    let what = req.headers.get("what"); // Changed from const to let
 
-        if (!playerid) {
-            if (log) {
-                console.log(`Result: PlayerID | 401 TXT`);
-            }
-            return new Response("PlayerID", { status: 401 });
-        }
-        if (!what) {
-            if (log) {
-                console.log(`Result: What | 401 TXT`);
-            }
-            return new Response("What", { status: 401 });
-        }
-        // get path
-        const filePath = `${pdpath}/${playerid}.json`;
+    if (!playerid) return new Response("PlayerID", { status: 401 });
+    if (!what) return new Response("What", { status: 401 });
 
-        // set
-        const data = await Bun.file(filePath).json();
-        set(data, change, what);
-        await Bun.write(filePath, JSON.stringify(data, null, 4));
-
-        if (log) {
-            console.log(`Result: Changed ${change} to ${what} | 200 TXT`);
-        }
-        return new Response(`Changed ${change} to ${what}`, { status: 200 });
+    // FIX: Safely parse numbers or array structures before Lodash saves them
+    try {
+        what = JSON.parse(what);
+    } catch (e) {
+        // Leave it as a standard string string if parsing fails
     }
+
+    const filePath = `${pdpath}/${playerid}.json`;
+    const data = await Bun.file(filePath).json();
+    set(data, change, what);
+    await Bun.write(filePath, JSON.stringify(data, null, 4));
+
+    return new Response(`Changed ${change} to ${what}`, { status: 200 });
+}
 
     // === END ===
 
@@ -268,7 +269,7 @@ const server = Bun.serve({
     }
 
     // cosmetic buy
-    if (req.method === "GET" && url.pathname == "/cosmetics/buy/" || "/cosmetics/buy") {
+    if (req.method === "GET" && url.pathname == "/cosmetics/buy/" || url.pathname == "/cosmetics/buy") {
         const cos = `${svrpath}/${cjname}.json`;
 
         // get headers bc i said so
@@ -330,12 +331,94 @@ const server = Bun.serve({
 
     // === END ===
 
+    // web gui
+    // check if they want the gui
+    if (webgui) {
+        if (req.method === "GET" && (url.pathname == "/admin/" || url.pathname == "/admin")) {
+            // respond with index.html
+            const file = Bun.file(`web/index.html`);
+            return new Response(file, {
+                headers: {
+                    "Content-Type": "text/html"
+                }
+            });
+        }
+
+        if (req.method === "GET" && (url.pathname == "/admin/dash/" || url.pathname == "/admin/dash")) {
+            // respond with dash.html
+            const file = Bun.file(`web/dash.html`);
+            return new Response(file, {
+                headers: {
+                    "Content-Type": "text/html"
+                }
+            });
+        }
+
+        // Get all players list
+if (req.method === "GET" && (url.pathname === "/admin/players" || url.pathname === "/admin/players/")) {
+    try {
+        const files = readdirSync(pdpath); // Reads the playerdata directory
+        const playersList = [];
+
+        for (const file of files) {
+            if (file.endsWith(".json")) {
+                const playerData = await Bun.file(`${pdpath}/${file}`).json();
+                
+                // Push an object containing only what the HTML needs
+                playersList.push({
+                    name: playerData.name || "Unknown Player",
+                    id: playerData.id || file.replace(".json", "")
+                });
+            }
+        }
+
+        return Response.json(playersList);
+    } catch (err) {
+        return Response.json({ success: false, message: "Could not retrieve players" }, { status: 500 });
+    }
+}
+
+        // login
+        if (req.method === "POST" && (url.pathname == "/admin/login/" || url.pathname == "/admin/login")) {
+            const info = await Bun.file(`${svrpath}/weblogin.json`).json();
+            const { username, password } = await req.json();
+            if (username == info.username && password == info.password) {
+                return new Response(`{ "token": "${btoa(info.password)}" }`, {
+                    headers: {
+                        "Content-Type": "application/json"
+                    }
+                });
+            }
+            return new Response(JSON.stringify({ success: false, message: "Invalid credentials" }), { 
+            status: 401,
+            headers: { "Content-Type": "application/json" }
+        });
+        }
+
+        // do check
+if (req.method === "POST" && (url.pathname === "/admin/verify" || url.pathname === "/admin/verify/")) {
+    try {
+        const { token } = await req.json();
+
+        const info = await Bun.file(`${svrpath}/weblogin.json`).json();
+        if (token && atob(token) === info.password) {
+            return Response.json({ success: true });
+        }
+
+        return Response.json({ success: false, message: "Invalid token" }, { status: 401 });
+    } catch (err) {
+        return Response.json({ success: false, message: "Bad Request" }, { status: 400 });
+    }
+}
+    }
+
+    // 404
     if (log) {
         console.log(`Result: This is a PlayJS Server. (https://github.com/TooFooDev/PlayJS) | 404 TXT`);
     }
     return new Response("This is a PlayJS Server. (https://github.com/TooFooDev/PlayJS)", { status: 404 });
   },
-});
+  });
 
 // ------------------
 
